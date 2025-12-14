@@ -142,7 +142,6 @@ window.addEventListener("DOMContentLoaded", function() {
   document.getElementById("run").addEventListener("click", run)
   function run() {
     if (running) {
-      document.getElementById("run").textContent = "▶実行"
       stop()
       return
     }
@@ -219,6 +218,7 @@ window.addEventListener("DOMContentLoaded", function() {
   }
 
   function stop() {
+    document.getElementById("run").textContent = "▶実行"
     running = false
   }
 
