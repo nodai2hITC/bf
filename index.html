@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1, maximum-scale=1" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/autosize.js/3.0.20/autosize.min.js" integrity="sha512-EAEoidLzhKrfVg7qX8xZFEAebhmBMsXrIcI0h7VPx2CyAyFHuDvOAUs9CEATB2Ou2/kuWEDtluEVrQcjXBy9yw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="bf.js"></script>
+<style>
+textarea
+{
+    width: 100%;
+}
+
+p
+{
+    margin-bottom: 0;
+}
+
+pre
+{
+    margin: 0;
+    white-space: normal;
+}
+
+span#active
+{
+    background-color: #f99;
+}
+
+table
+{
+    border-collapse: collapse;
+}
+
+tr#ptrs
+{
+    color: #000;
+}
+tr#cells,
+tr#chars
+{
+    color: #666;
+}
+
+td
+{
+    width: 3em;
+    text-align: center;
+    border: 1px solid #999;
+}
+td.active
+{
+    background-color: #f99;
+}
+.nowrap
+{
+    white-space: nowrap;
+}
+
+</style>
+<title>BF Interpreter</title>
+</head>
+<body>
+
+<h1>BF Interpreter</h1>
+
+<textarea id="editor" spellcheck="false"></textarea>
+
+<button id="run" type="button">▶実行</button>
+<button id="copy" type="button">URL でコピー</button>
+
+<details>
+  <summary>詳細設定</summary>
+  <span class="nowrap"><label for="speed">実行速度：</label>
+  <select name="speed" id="speed">
+    <option value="1">1 ms</option>
+    <option value="5">5 ms</option>
+    <option value="10">10 ms</option>
+    <option value="20" selected>20 ms</option>
+    <option value="50">50 ms</option>
+    <option value="100">100 ms</option>
+  </select>　</span>
+  <span class="nowrap"><label for="cell_bit">セルのビット数：</label>
+  <select name="cell_bit" id="cell_bit">
+    <option value="8" selected>8 bit</option>
+    <option value="32">32 bit</option>
+  </select>　</span>
+  <span class="nowrap"><label for="eof">EOF の値：</label>
+  <select name="eof" id="eof">
+    <option value="0">0</option>
+    <option value="-1" selected>-1</option>
+  </select></span>
+  <p>入力：</p>
+  <textarea id="input"></textarea>
+</details>
+
+<p>出力：</p>
+<textarea id="output" readonly></textarea>
+
+<p>記憶領域：</p>
+<table>
+  <tr id="ptrs"></tr>
+  <tr id="cells"></tr>
+  <tr id="chars"></tr>
+</table>
+
+
+<p>コード：</p>
+<pre id="code"><span id="before"></span><span id="active"></span><span id="after"></span></pre>
+
+<script>
+"use strict"
+
+let bfi = undefined
+let decoder = undefined
+let running = false
+
+class MyBFInterpreter extends BFInterpreter {
+  output(char) {
+    const u8a = new Uint8Array(1)
+    u8a[0] = char % 256
+    document.getElementById("output").value += decoder.decode(u8a, { stream: true })
+  }
+}
+
+window.addEventListener("DOMContentLoaded", function() {
+  if (location.hash) {
+    const hash = location.hash.slice(1)
+    const u8a = Uint8Array.fromBase64(hash, { alphabet: "base64url" })
+    const code = new TextDecoder().decode(u8a)
+    document.getElementById("editor").value = code
+  }
+
+  document.getElementById("copy").addEventListener("click", () => {
+    const code = document.getElementById("editor").value
+    const u8a = new TextEncoder().encode(code)
+    const hash = u8a.toBase64({ alphabet: "base64url", omitPadding: true })
+    location.hash = hash
+    navigator.clipboard.writeText(location.href)
+  })
+
+  document.getElementById("run").addEventListener("click", run)
+  function run() {
+    if (running) {
+      document.getElementById("run").textContent = "▶実行"
+      stop()
+      return
+    }
+    running = true
+    document.getElementById("run").textContent = "■Stop"
+
+    document.getElementById("output").value = ""
+    const code = document.getElementById("editor").value
+    const input = new TextEncoder().encode(document.getElementById("input").value)
+    const speed = parseInt(document.getElementById("speed").value)
+    const cell_bit = parseInt(document.getElementById("cell_bit").value)
+    const eof = parseInt(document.getElementById("eof").value)
+
+    bfi = new MyBFInterpreter(code, input, cell_bit, eof)
+    decoder = new TextDecoder()
+
+    const before = document.getElementById("before")
+    const active = document.getElementById("active")
+    const after  = document.getElementById("after")
+    
+    const fontsize_str = window.getComputedStyle(document.body).fontSize
+    const fontsize = parseInt(fontsize_str) || 16
+    const length = parseInt(document.body.scrollWidth / ((fontsize + 1) * 3)) - 1
+    let left = 0
+    
+    let ptrs_html = ""
+    let cells_html = ""
+    let chars_html = ""
+    for (let i = 0; i < length; i++){
+        ptrs_html  += `<td id="ptr${i}">${i}</td>`
+        cells_html += `<td id="cell${i}">0</td>`
+        chars_html += `<td id="char${i}">0</td>`
+    }
+    document.getElementById("ptrs").innerHTML = ptrs_html
+    document.getElementById("cells").innerHTML = cells_html
+    document.getElementById("chars").innerHTML = chars_html
+
+    const func = () => {
+      if (running && bfi.pc < bfi.code.length) {
+        before.textContent = bfi.code.slice(0, bfi.pc)
+        active.textContent = bfi.code.at(bfi.pc)
+        after.textContent  = bfi.code.slice(bfi.pc + 1)
+        const ptr = bfi.ptr;
+        if (ptr < left) {
+          left = ptr - parseInt(length * 2 / 3)
+        } else if (left + length <= ptr) {
+          left = ptr - parseInt(length / 3)
+        }
+        for (let i = 0; i < length; i++) {
+          const value = bfi.get(left + i)
+          document.getElementById(`ptr${i}`).textContent = left + i
+          document.getElementById(`cell${i}`).textContent = value
+          document.getElementById(`char${i}`).textContent = "　"
+          if (32 < value && value < 127) {
+            document.getElementById(`char${i}`).textContent = String.fromCharCode(value)
+          }
+          if (left + i == ptr) {
+            document.getElementById(`ptr${i}`).className = "active"
+            document.getElementById(`cell${i}`).className = "active"
+            document.getElementById(`char${i}`).className = "active"
+          } else {
+            document.getElementById(`ptr${i}`).className = ""
+            document.getElementById(`cell${i}`).className = ""
+            document.getElementById(`char${i}`).className = ""
+          }
+        }
+        bfi.step()
+        window.setTimeout(func, speed)
+      } else {
+        stop()
+      }
+    }
+    func()
+  }
+
+  function stop() {
+    running = false
+  }
+
+  document.getElementById("editor").focus()
+
+  autosize(document.querySelectorAll("textarea"))
+})
+
+</script>
+</body>
+</html>
