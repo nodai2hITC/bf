@@ -1,0 +1,64 @@
+.CodeMirror {
+    border: solid 1px #999;
+    height: auto;
+    resize: vertical;
+    font-size: 16px;
+    font-family: "Consolas", "Menlo", monospace;
+    overflow-y: hidden;
+}
+
+.pc {
+    background-color: #f99;
+}
+
+textarea
+{
+    width: 100%;
+}
+
+p
+{
+    margin-bottom: 0;
+}
+
+pre
+{
+    margin: 0;
+    white-space: normal;
+    font-family: "Consolas", "Menlo", monospace;
+}
+
+span#active
+{
+    background-color: #f99;
+}
+
+table
+{
+    border-collapse: collapse;
+}
+
+tr#ptrs
+{
+    color: #000;
+}
+tr#cells,
+tr#chars
+{
+    color: #666;
+}
+
+td
+{
+    width: 3em;
+    text-align: center;
+    border: 1px solid #999;
+}
+td.active
+{
+    background-color: #f99;
+}
+.nowrap
+{
+    white-space: nowrap;
+}
